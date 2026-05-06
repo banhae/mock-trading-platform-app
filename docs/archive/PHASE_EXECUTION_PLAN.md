@@ -1,6 +1,6 @@
 # PHASE_EXECUTION_PLAN
 
-`exchange-app`의 현재 상태를 기준으로, **Phase 4.5 구현 전에 반드시 정리해야 하는 작업을 구현 단위로 쪼개고 실행 순서를 부여한 문서**다.
+`mock-trading-platform-app`의 현재 상태를 기준으로, **Phase 4.5 구현 전에 반드시 정리해야 하는 작업을 구현 단위로 쪼개고 실행 순서를 부여한 문서**다.
 
 핵심 원칙:
 

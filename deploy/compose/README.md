@@ -3,7 +3,7 @@
 > **범위**: 로컬 데모 / 개발 환경 smoke 전용.
 > 정식 배포 경로는 EKS 위의 Helm + ArgoCD 입니다
 > ([`charts/`](../../charts/) 와
-> [`exchange-gitops`](https://github.com/banhae/mock-trading-platform-gitops) 레포 참고).
+> [`mock-trading-platform-gitops`](https://github.com/banhae/mock-trading-platform-gitops) 레포 참고).
 > 이 compose 스택은 지원되는 배포 경로가 **아니며** CI 에서 검증되지 않습니다.
 
 ## 실행되는 구성

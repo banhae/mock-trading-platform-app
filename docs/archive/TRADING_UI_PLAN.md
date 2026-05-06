@@ -196,7 +196,7 @@ Phase 3 matcher 가 발행하는 체결 이벤트를 marketdata / wallet 이 받
   - consumer wiring
   - 초기에는 수신 로그/카운터 수준으로 시작 가능
 - Helm / values
-  - exchange-app `charts/` 와 환경별 values 에 event bus 배포 wiring 반영
+  - mock-trading-platform-app `charts/` 와 환경별 values 에 event bus 배포 wiring 반영
 
 스코프 밖:
 
@@ -380,7 +380,7 @@ streaming 으로 바꾼다.
 여기서부터 "진짜 거래소 같은" 느낌이 들어온다.
 
 **주의**:
-이 phase 는 **exchange-app 리포 단독으로 완결되지 않는다.**
+이 phase 는 **mock-trading-platform-app 리포 단독으로 완결되지 않는다.**
 
 영향 범위:
 
@@ -390,7 +390,7 @@ streaming 으로 바꾼다.
 - health check 경로
 - values / ingress 설정
 
-따라서 exchange-infra 와 exchange-gitops 가 같이 움직인다.
+따라서 mock-trading-platform-infra 와 mock-trading-platform-gitops 가 같이 움직인다.
 
 추가:
 
@@ -579,10 +579,10 @@ Phase 7: wallet (Phase 3 이후 어디서나 독립 진행 가능)
    - 초기에 규칙을 못 박아야 한다
 
 5. **Phase 2 의 선택이 infra 를 흔든다**
-   - Kafka 를 고르면 exchange-infra 와 exchange-gitops 변경폭이 커진다
+   - Kafka 를 고르면 mock-trading-platform-infra 와 mock-trading-platform-gitops 변경폭이 커진다
    - 현재 학습 단계에서는 NATS JetStream 이 가장 덜 아프다
 
-6. **Phase 5 는 더 이상 exchange-app 만의 문제가 아니다**
+6. **Phase 5 는 더 이상 mock-trading-platform-app 만의 문제가 아니다**
    - WebSocket 은 ingress/ALB/timeout/sticky 문제를 같이 만든다
    - 이 phase 부터는 3개 리포가 한 묶음으로 움직인다고 생각해야 한다
 

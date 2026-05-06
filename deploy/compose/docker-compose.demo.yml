@@ -1,7 +1,7 @@
 # Local demo compose stack — portfolio capture only.
 #
 # Production deployment path is Helm + ArgoCD on EKS
-# (see ../../charts/ and the exchange-gitops repo).
+# (see ../../charts/ and the mock-trading-platform-gitops repo).
 # This file exists ONLY so the running app can be captured for portfolio
 # screenshots in a single environment without provisioning Kubernetes.
 #

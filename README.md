@@ -1,4 +1,4 @@
-# exchange-app
+# mock-trading-platform-app
 
 코인 거래소 mock 시스템의 애플리케이션 리포지토리.
 AWS EKS 위에서 Kubernetes + Helm + GitOps 패턴을 학습하기 위한 mock 서비스들을 관리한다.
@@ -7,14 +7,14 @@ AWS EKS 위에서 Kubernetes + Helm + GitOps 패턴을 학습하기 위한 mock 
 
 | 리포 | 책임 |
 |------|------|
-| **exchange-app** (이 리포) | 서비스 코드, Dockerfile, Helm chart, CI |
-| exchange-infra | Terraform, AWS 인프라 (VPC, EKS, ECR, IAM) |
-| exchange-gitops | ArgoCD Application, 환경별 values |
+| **mock-trading-platform-app** (이 리포) | 서비스 코드, Dockerfile, Helm chart, CI |
+| mock-trading-platform-infra | Terraform, AWS 인프라 (VPC, EKS, ECR, IAM) |
+| mock-trading-platform-gitops | ArgoCD Application, 환경별 values |
 
 ## 디렉터리 구조
 
 ```
-exchange-app/
+mock-trading-platform-app/
 ├── services/
 │   ├── order-service/          # 주문 생성/조회 API (핵심 서비스)
 │   ├── auth-service/           # Mock 로그인, JWT 발급
@@ -224,7 +224,7 @@ helm lint charts/frontend
 - frontend (Vite+React SPA, nginx static serving, same-origin `/api` 호출 + ingress path routing)
 - Helm chart (5개 서비스)
 - CI (test, docker build, ECR push, chart lint)
-- ECR 이미지 경로 `exchange/<service>` 규칙 적용
+- ECR 이미지 경로 `mock-trading-platform/<service>` 규칙 적용
 - 이벤트 버스: NATS JetStream
   - order-service matcher runtime 경로에서 `order.created` / `order.updated` /
     `trade.executed` 를 best-effort 로 발행
@@ -247,8 +247,8 @@ helm lint charts/frontend
 배포, ingress 연결, namespace 연결 등은 아래 리포에서 함께 움직여야 Phase 2 가 실제
 환경에서 동작한다.
 
-- `exchange-infra`: NATS 배포 전용 인프라(필요 시), IAM / 네트워크 경로
-- `exchange-gitops`: NATS Helm chart (예: `nats-io/nats`) 배포, 각 서비스 values
+- `mock-trading-platform-infra`: NATS 배포 전용 인프라(필요 시), IAM / 네트워크 경로
+- `mock-trading-platform-gitops`: NATS Helm chart (예: `nats-io/nats`) 배포, 각 서비스 values
   override (`env.EVENT_BUS_ENABLED`, `env.NATS_URL`, `env.NATS_STREAM`,
   `env.NATS_DURABLE`)
 

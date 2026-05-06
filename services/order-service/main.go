@@ -81,7 +81,7 @@ func main() {
 	mux.Handle("DELETE /api/orders/{id}", auth(http.HandlerFunc(h.CancelOrder)))
 
 	// Prometheus scrape endpoint. Exposed on the same port; PodMonitor in
-	// exchange-gitops scrapes this path. Excluded from the metrics middleware
+	// mock-trading-platform-gitops scrapes this path. Excluded from the metrics middleware
 	// to avoid self-instrumentation noise.
 	mux.Handle("GET /metrics", promhttp.Handler())
 
