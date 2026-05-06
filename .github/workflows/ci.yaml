@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - 'services/**'
+      - 'charts/**'
+      - '.github/workflows/ci.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'charts/**'
+      - '.github/workflows/ci.yaml'
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 서비스 CI: matrix 기반 test → docker build → (조건부) ECR push
+  # ---------------------------------------------------------------------------
+  ci-services:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            service_dir: services/frontend
+            stack: node
+            test_cmd: npm test -- --run
+          - service: auth-service
+            service_dir: services/auth-service
+            stack: go
+            test_cmd: go test -v ./...
+          - service: order-service
+            service_dir: services/order-service
+            stack: go
+            test_cmd: go test -v ./...
+          - service: wallet-service
+            service_dir: services/wallet-service
+            stack: go
+            test_cmd: go test -v ./...
+          - service: marketdata-service
+            service_dir: services/marketdata-service
+            stack: go
+            test_cmd: go test -v ./...
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        if: matrix.stack == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.service_dir }}/go.mod
+
+      - name: Setup Node
+        if: matrix.stack == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install deps (frontend)
+        if: matrix.stack == 'node'
+        run: cd ${{ matrix.service_dir }} && npm ci
+
+      - name: Run tests
+        run: cd ${{ matrix.service_dir }} && ${{ matrix.test_cmd }}
+
+      - name: Build (frontend)
+        if: matrix.stack == 'node'
+        run: cd ${{ matrix.service_dir }} && npm run build
+
+      - name: Build Docker image
+        run: docker build -t ${{ matrix.service }}:ci ${{ matrix.service_dir }}
+
+      - name: Skip ECR push (AWS not configured)
+        if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID == ''
+        run: |
+          echo "::notice::Skipping ECR push for ${{ matrix.service }} — AWS configuration (AWS_ACCOUNT_ID, AWS_ROLE_ARN, AWS_REGION) is not set in repository variables"
+
+      - name: Configure AWS credentials
+        if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push image to ECR
+        if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          SHA_TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION_TAG="${{ github.ref_name }}"
+          else
+            VERSION_TAG="latest"
+          fi
+
+          docker tag ${{ matrix.service }}:ci $REGISTRY/mock-trading-platform/${{ matrix.service }}:$VERSION_TAG
+          docker tag ${{ matrix.service }}:ci $REGISTRY/mock-trading-platform/${{ matrix.service }}:$SHA_TAG
+          docker push $REGISTRY/mock-trading-platform/${{ matrix.service }}:$VERSION_TAG
+          docker push $REGISTRY/mock-trading-platform/${{ matrix.service }}:$SHA_TAG
+          echo "::notice::Pushed $REGISTRY/mock-trading-platform/${{ matrix.service }}:$VERSION_TAG and $REGISTRY/mock-trading-platform/${{ matrix.service }}:$SHA_TAG"
+
+  # ---------------------------------------------------------------------------
+  # Helm chart validation: lint + template 렌더링 검증.
+  # ---------------------------------------------------------------------------
+  validate-charts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint order-service chart
+        run: helm lint charts/order-service
+
+      - name: Lint auth-service chart
+        run: helm lint charts/auth-service
+
+      - name: Lint wallet-service chart
+        run: helm lint charts/wallet-service
+
+      - name: Lint marketdata-service chart
+        run: helm lint charts/marketdata-service
+
+      - name: Lint frontend chart
+        run: helm lint charts/frontend
+
+      - name: Lint mock-trading-platform-ingress chart
+        run: helm lint charts/mock-trading-platform-ingress
+
+      - name: Template frontend chart
+        run: helm template charts/frontend >/tmp/frontend.render.yaml
+
+      - name: Template mock-trading-platform-ingress chart (default)
+        run: helm template charts/mock-trading-platform-ingress >/tmp/mock-trading-platform-ingress.render.yaml
+
+      - name: Template mock-trading-platform-ingress chart (blank host/className)
+        run: |
+          helm template charts/mock-trading-platform-ingress \
+            --set ingress.host= \
+            --set ingress.className= >/tmp/mock-trading-platform-ingress.blank.render.yaml
+
+      - name: Validate mock-trading-platform-ingress rendering invariants
+        run: |
+          set -euo pipefail
+
+          # "/" fallback path must be rendered last.
+          last_path="$(awk '/^[[:space:]]*- path: /{p=$3} END{print p}' /tmp/mock-trading-platform-ingress.blank.render.yaml)"
+          [[ "${last_path}" == "/" ]]
+
+          # Blank host/className should omit optional fields.
+          ! grep -q '^[[:space:]]*host:' /tmp/mock-trading-platform-ingress.blank.render.yaml
+          ! grep -q '^[[:space:]]*ingressClassName:' /tmp/mock-trading-platform-ingress.blank.render.yaml

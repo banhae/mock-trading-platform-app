@@ -1,0 +1,121 @@
+# Local demo compose stack — portfolio capture only.
+#
+# Production deployment path is Helm + ArgoCD on EKS
+# (see ../../charts/ and the exchange-gitops repo).
+# This file exists ONLY so the running app can be captured for portfolio
+# screenshots in a single environment without provisioning Kubernetes.
+#
+# Run from the repo root:
+#   cp deploy/compose/.env.example deploy/compose/.env
+#   docker compose -f deploy/compose/docker-compose.demo.yml \
+#     --env-file deploy/compose/.env up --build
+#
+# Then open http://localhost:8080 .
+
+name: exchange-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  nats:
+    image: nats:2-alpine
+    # -js: enable JetStream. -m 8222: monitoring port for healthcheck.
+    # -sd: JetStream storage directory.
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - nats-data:/data
+
+  auth-service:
+    build:
+      context: ../../services/auth-service
+    environment:
+      PORT: "8081"
+      DEV_MODE: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      TOKEN_EXPIRY: "1h"
+
+  # order-service is the only service that depends on Postgres.
+  # DEV_MODE=true makes it auto-create the orders/trades tables on startup.
+  # EVENT_BUS_ENABLED=true makes it publish to NATS JetStream;
+  # the publisher itself ensures the ORDERS stream exists.
+  order-service:
+    build:
+      context: ../../services/order-service
+    environment:
+      PORT: "8080"
+      DEV_MODE: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      EVENT_BUS_ENABLED: "true"
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: ORDERS
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+
+  wallet-service:
+    build:
+      context: ../../services/wallet-service
+    environment:
+      PORT: "8082"
+      DEV_MODE: "true"
+      EVENT_BUS_ENABLED: "true"
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: ORDERS
+      NATS_DURABLE: wallet-consumer
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  marketdata-service:
+    build:
+      context: ../../services/marketdata-service
+    environment:
+      PORT: "8083"
+      DEV_MODE: "true"
+      EVENT_BUS_ENABLED: "true"
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: ORDERS
+      NATS_DURABLE: marketdata-consumer
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  # frontend nginx: in production the K8s ALB Ingress routes /api/*.
+  # In the compose demo we instead mount nginx.compose.conf so the browser
+  # still hits the frontend origin only (same-origin contract preserved).
+  frontend:
+    build:
+      context: ../../services/frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth-service
+      - order-service
+      - wallet-service
+      - marketdata-service
+
+volumes:
+  postgres-data:
+  nats-data:

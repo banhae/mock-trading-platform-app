@@ -1,0 +1,37 @@
+ingress:
+  enabled: true
+  className: ""
+  host: ""
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+
+paths:
+  api:
+    - path: /api/auth
+      pathType: Prefix
+      service:
+        name: auth-service
+        port: 8080
+    - path: /api/orders
+      pathType: Prefix
+      service:
+        name: order-service
+        port: 8080
+    - path: /api/wallet
+      pathType: Prefix
+      service:
+        name: wallet-service
+        port: 8080
+    - path: /api/market
+      pathType: Prefix
+      service:
+        name: marketdata-service
+        port: 8080
+  frontend:
+    path: /
+    pathType: Prefix
+    service:
+      name: frontend
+      port: 80

@@ -1,0 +1,46 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mock-trading-platform-ingress.fullname" . }}
+  labels:
+    {{- include "mock-trading-platform-ingress.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - {{- if .Values.ingress.host }}
+      hosts:
+        - {{ .Values.ingress.host | quote }}
+      {{- end }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - {{- if .Values.ingress.host }}
+      host: {{ .Values.ingress.host | quote }}
+      {{- end }}
+      http:
+        paths:
+          {{- range .Values.paths.api }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ .service.name }}
+                port:
+                  number: {{ .service.port }}
+          {{- end }}
+          - path: {{ .Values.paths.frontend.path }}
+            pathType: {{ .Values.paths.frontend.pathType }}
+            backend:
+              service:
+                name: {{ .Values.paths.frontend.service.name }}
+                port:
+                  number: {{ .Values.paths.frontend.service.port }}
+{{- end }}

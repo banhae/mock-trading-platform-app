@@ -1,0 +1,38 @@
+replicaCount: 1
+
+image:
+  repository: mock-trading-platform/frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+container:
+  port: 80
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+env:
+  VITE_API_BASE: "/api"
+
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+probes:
+  liveness:
+    path: /healthz
+    port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /healthz
+    port: 80
+    initialDelaySeconds: 2
+    periodSeconds: 5

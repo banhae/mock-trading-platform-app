@@ -1,0 +1,44 @@
+:root {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-alt: #fafbfc;
+  --surface-hover: #f1f3f6;
+  --border: #e5e7ec;
+  --border-strong: #cfd3da;
+  --text: #1a1d24;
+  --text-muted: #6b7280;
+  --text-subtle: #9098a3;
+
+  --primary: #3b5bdb;
+  --primary-hover: #2c46b8;
+  --primary-soft: #eef1fc;
+
+  --buy: #0a8a6a;
+  --buy-hover: #097258;
+  --buy-soft: #e6f4ef;
+  --buy-depth: rgba(10, 138, 106, 0.12);
+
+  --sell: #d64545;
+  --sell-hover: #b73535;
+  --sell-soft: #fceeee;
+  --sell-depth: rgba(214, 69, 69, 0.12);
+
+  --neutral: #4b5563;
+  --warning: #b97700;
+  --warning-soft: #fff6e0;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(18, 24, 40, 0.04);
+  --shadow: 0 2px 6px rgba(18, 24, 40, 0.06);
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+    "Pretendard", Roboto, Helvetica, Arial, sans-serif;
+
+  --header-height: 56px;
+  --content-max: 1440px;
+}

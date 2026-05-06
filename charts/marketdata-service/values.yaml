@@ -1,0 +1,40 @@
+replicaCount: 1
+
+image:
+  repository: mock-trading-platform/marketdata-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8083
+
+env:
+  PORT: "8083"
+  DEV_MODE: "true"
+  # Phase 2 — event bus (NATS JetStream) consumer wiring.
+  # EVENT_BUS_ENABLED=false 이면 consumer 는 기동하지 않고 no-op 상태로 시작한다.
+  EVENT_BUS_ENABLED: "false"
+  NATS_URL: ""
+  NATS_STREAM: "ORDERS"
+  NATS_DURABLE: "marketdata-consumer"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+probes:
+  liveness:
+    path: /health
+    port: 8083
+    initialDelaySeconds: 3
+    periodSeconds: 10
+  readiness:
+    path: /ready
+    port: 8083
+    initialDelaySeconds: 3
+    periodSeconds: 10

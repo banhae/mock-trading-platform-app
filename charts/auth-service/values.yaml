@@ -1,0 +1,38 @@
+replicaCount: 1
+
+image:
+  repository: mock-trading-platform/auth-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8081
+
+env:
+  PORT: "8081"
+  DEV_MODE: "true"
+  TOKEN_EXPIRY: "1h"
+  # JWT_SECRET은 여기에 실제 값을 넣지 않는다.
+  # Secret 또는 외부 설정으로 주입할 것. (다음 phase에서 처리)
+  JWT_SECRET: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+probes:
+  liveness:
+    path: /health
+    port: 8081
+    initialDelaySeconds: 3
+    periodSeconds: 10
+  readiness:
+    path: /ready
+    port: 8081
+    initialDelaySeconds: 3
+    periodSeconds: 10
