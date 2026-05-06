@@ -1,8 +1,8 @@
-{{- define "exchange-ingress.fullname" -}}
+{{- define "mock-trading-platform-ingress.fullname" -}}
 {{- .Release.Name }}-{{ .Chart.Name }}
 {{- end }}
 
-{{- define "exchange-ingress.labels" -}}
+{{- define "mock-trading-platform-ingress.labels" -}}
 app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
