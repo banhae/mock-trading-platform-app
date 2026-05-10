@@ -12,7 +12,7 @@
 #
 # Then open http://localhost:8080 .
 
-name: exchange-demo
+name: mock-trading-platform-demo
 
 services:
   postgres:

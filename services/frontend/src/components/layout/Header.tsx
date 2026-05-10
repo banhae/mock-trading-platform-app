@@ -15,10 +15,10 @@ export function Header() {
 
   return (
     <header className="app-header">
-      <Link to="/trade/BTC-KRW" className="app-header__brand" aria-label="Exchange Mock 홈">
-        <span className="app-header__brand-mark">EX</span>
+      <Link to="/trade/BTC-KRW" className="app-header__brand" aria-label="Mock Trading Platform 홈">
+        <span className="app-header__brand-mark">MT</span>
         <span className="app-header__brand-text">
-          Exchange<span className="app-header__brand-accent">Mock</span>
+          Mock Trading<span className="app-header__brand-accent">Platform</span>
         </span>
       </Link>
       <nav className="app-header__nav" aria-label="Primary">
