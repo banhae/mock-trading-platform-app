@@ -1,6 +1,6 @@
 # frontend
 
-Exchange mock system의 SPA 프론트엔드다. Vite + React + TypeScript로 빌드하며, 컨테이너의 nginx는 정적 파일만 서빙한다.
+Mock trading platform의 SPA 프론트엔드다. Vite + React + TypeScript로 빌드하며, 컨테이너의 nginx는 정적 파일만 서빙한다.
 
 - 포트: 컨테이너 80, Service 8084 (Helm chart `charts/frontend` 기준)
 - 라우트: `/trade/:pair`, `/login`, `/orders`, `/health`

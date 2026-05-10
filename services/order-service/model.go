@@ -37,7 +37,7 @@ var (
 	ErrOrderNotCancellable = errors.New("order is not in a cancellable state")
 )
 
-// Order represents a trade order in the exchange system.
+// Order represents a trade order in the mock trading platform.
 //
 // 숫자 필드 (Quantity, Price, RemainingQuantity) 는 decimal string 으로 유지한다.
 // float 로 변환하지 않는다. 이는 matcher / aggregation 이 붙는 Phase 3+ 에서도
