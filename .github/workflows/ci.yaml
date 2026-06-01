@@ -170,3 +170,91 @@ jobs:
           # Blank host/className should omit optional fields.
           ! grep -q '^[[:space:]]*host:' /tmp/mock-trading-platform-ingress.blank.render.yaml
           ! grep -q '^[[:space:]]*ingressClassName:' /tmp/mock-trading-platform-ingress.blank.render.yaml
+
+  # ---------------------------------------------------------------------------
+  # GitOps write-back: ci-services + validate-charts 통과 시 gitops repo 의
+  # dev values image.tag 를 새 sha 로 갱신하고 commit/push 한다.
+  # gitops 가 desired state 의 단일 진실원이 되도록 latest 가 아닌 immutable
+  # sha tag 를 참조하게 하고, 롤백은 gitops 커밋 revert 로 수행한다.
+  # ---------------------------------------------------------------------------
+  update-gitops:
+    needs: [ci-services, validate-charts]
+    # main 에 두 commit 이 짧은 간격으로 push 되면 두 workflow 의 update-gitops 가
+    # 동시에 gitops main 을 checkout → 둘 다 같은 base 위에서 commit → 나중 push 가
+    # non-fast-forward 로 거부되어 더 새로운 sha 가 dev 에 반영되지 못한다.
+    # job-level concurrency 로 update-gitops 를 직렬화한다 (checkout 도 큐 안쪽이라
+    # 두 번째 job 은 첫 번째 push 이후의 fresh base 위에서 시작한다).
+    concurrency:
+      group: gitops-write-mock-trading-platform-gitops
+      cancel-in-progress: false
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check freshness
+        # concurrency 는 update-gitops 의 동시 실행만 막고 *실행 순서* 는 보장하지 않는다.
+        # commit B 가 더 빠른 매트릭스 빌드로 commit A 보다 먼저 락에 진입하면, B 가
+        # sha-B 를 푸시한 뒤 A 가 락을 잡고 *더 오래된* sha-A 로 덮어쓰는 케이스가 가능하다.
+        # 락 안에서 "내 commit 이 여전히 app repo main 의 tip 인가" 를 확인해, 아니면
+        # deploy 를 스킵한다 (실제 tip 의 workflow 가 deploy 를 수행한다).
+        id: freshness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ACTUAL_TIP=$(git ls-remote \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            refs/heads/main | awk '{print $1}')
+          if [[ "${COMMIT_SHA}" != "${ACTUAL_TIP}" ]]; then
+            echo "::notice::Stale: ${COMMIT_SHA:0:7} is not tip of main (${ACTUAL_TIP:0:7}); a newer workflow will perform the deploy."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout gitops repo
+        if: steps.freshness.outputs.stale != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: banhae/mock-trading-platform-gitops
+          token: ${{ secrets.GITOPS_DEPLOY_TOKEN }}
+          ref: main
+
+      - name: Patch image tags and chart revisions
+        if: steps.freshness.outputs.stale != 'true'
+        # sed 로 한 줄씩만 치환한다 (yq -i 는 blank line 을 normalize 해서 diff 가 부풀어짐).
+        # - values:        image.tag 를 sha-<short> 로 핀
+        # - applications:  chart source 의 targetRevision 을 <short> 로 핀
+        #   anchor 는 mock-trading-platform-app.git repoURL 이고 그 다음 줄만 수정하므로,
+        #   두 번째 source(gitops repoURL)의 targetRevision: main 은 영향 없음.
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(echo "${COMMIT_SHA}" | cut -c1-7)"
+          SHA_TAG="sha-${SHORT_SHA}"
+          for svc in auth-service order-service wallet-service marketdata-service frontend; do
+            sed -i -E "s|^  tag: \".*\"$|  tag: \"${SHA_TAG}\"|" "environments/dev/values/${svc}.yaml"
+            sed -i -E '\|repoURL: .*mock-trading-platform-app\.git|{n;s|targetRevision: .*|targetRevision: '"${SHORT_SHA}"'|;}' "argocd/applications/dev/${svc}.yaml"
+          done
+          git diff --stat || true
+
+      - name: Commit and push
+        if: steps.freshness.outputs.stale != 'true'
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(echo "${COMMIT_SHA}" | cut -c1-7)"
+          SHA_TAG="sha-${SHORT_SHA}"
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "::notice::No deploy changes to commit (already at ${SHA_TAG})"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add environments/dev/values/ argocd/applications/dev/
+          git commit -m "deploy(dev): bump chart+image to ${SHA_TAG}"
+          git push origin main
