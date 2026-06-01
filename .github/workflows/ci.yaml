@@ -170,3 +170,52 @@ jobs:
           # Blank host/className should omit optional fields.
           ! grep -q '^[[:space:]]*host:' /tmp/mock-trading-platform-ingress.blank.render.yaml
           ! grep -q '^[[:space:]]*ingressClassName:' /tmp/mock-trading-platform-ingress.blank.render.yaml
+
+  # ---------------------------------------------------------------------------
+  # GitOps write-back: ci-services + validate-charts 통과 시 gitops repo 의
+  # dev values image.tag 를 새 sha 로 갱신하고 commit/push 한다.
+  # gitops 가 desired state 의 단일 진실원이 되도록 latest 가 아닌 immutable
+  # sha tag 를 참조하게 하고, 롤백은 gitops 커밋 revert 로 수행한다.
+  # ---------------------------------------------------------------------------
+  update-gitops:
+    needs: [ci-services, validate-charts]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout gitops repo
+        uses: actions/checkout@v4
+        with:
+          repository: banhae/mock-trading-platform-gitops
+          token: ${{ secrets.GITOPS_DEPLOY_TOKEN }}
+          ref: main
+
+      - name: Patch image tags
+        # sed 로 image.tag 한 줄만 치환한다. yq -i 는 blank line 을 normalize 해서
+        # 배포 commit diff 가 부풀어진다.
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHA_TAG="sha-$(echo "${COMMIT_SHA}" | cut -c1-7)"
+          for svc in auth-service order-service wallet-service marketdata-service frontend; do
+            sed -i -E "s|^  tag: \".*\"$|  tag: \"${SHA_TAG}\"|" "environments/dev/values/${svc}.yaml"
+          done
+          git diff --stat || true
+
+      - name: Commit and push
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHA_TAG="sha-$(echo "${COMMIT_SHA}" | cut -c1-7)"
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "::notice::No values changes to commit (already at ${SHA_TAG})"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add environments/dev/values/
+          git commit -m "deploy(dev): bump images to ${SHA_TAG}"
+          git push origin main
