@@ -192,7 +192,30 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check freshness
+        # concurrency 는 update-gitops 의 동시 실행만 막고 *실행 순서* 는 보장하지 않는다.
+        # commit B 가 더 빠른 매트릭스 빌드로 commit A 보다 먼저 락에 진입하면, B 가
+        # sha-B 를 푸시한 뒤 A 가 락을 잡고 *더 오래된* sha-A 로 덮어쓰는 케이스가 가능하다.
+        # 락 안에서 "내 commit 이 여전히 app repo main 의 tip 인가" 를 확인해, 아니면
+        # deploy 를 스킵한다 (실제 tip 의 workflow 가 deploy 를 수행한다).
+        id: freshness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ACTUAL_TIP=$(git ls-remote \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            refs/heads/main | awk '{print $1}')
+          if [[ "${COMMIT_SHA}" != "${ACTUAL_TIP}" ]]; then
+            echo "::notice::Stale: ${COMMIT_SHA:0:7} is not tip of main (${ACTUAL_TIP:0:7}); a newer workflow will perform the deploy."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout gitops repo
+        if: steps.freshness.outputs.stale != 'true'
         uses: actions/checkout@v4
         with:
           repository: banhae/mock-trading-platform-gitops
@@ -200,6 +223,7 @@ jobs:
           ref: main
 
       - name: Patch image tags and chart revisions
+        if: steps.freshness.outputs.stale != 'true'
         # sed 로 한 줄씩만 치환한다 (yq -i 는 blank line 을 normalize 해서 diff 가 부풀어짐).
         # - values:        image.tag 를 sha-<short> 로 핀
         # - applications:  chart source 의 targetRevision 을 <short> 로 핀
@@ -218,6 +242,7 @@ jobs:
           git diff --stat || true
 
       - name: Commit and push
+        if: steps.freshness.outputs.stale != 'true'
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
