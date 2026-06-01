@@ -179,6 +179,14 @@ jobs:
   # ---------------------------------------------------------------------------
   update-gitops:
     needs: [ci-services, validate-charts]
+    # main 에 두 commit 이 짧은 간격으로 push 되면 두 workflow 의 update-gitops 가
+    # 동시에 gitops main 을 checkout → 둘 다 같은 base 위에서 commit → 나중 push 가
+    # non-fast-forward 로 거부되어 더 새로운 sha 가 dev 에 반영되지 못한다.
+    # job-level concurrency 로 update-gitops 를 직렬화한다 (checkout 도 큐 안쪽이라
+    # 두 번째 job 은 첫 번째 push 이후의 fresh base 위에서 시작한다).
+    concurrency:
+      group: gitops-write-mock-trading-platform-gitops
+      cancel-in-progress: false
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID != ''
     runs-on: ubuntu-latest
     permissions:
