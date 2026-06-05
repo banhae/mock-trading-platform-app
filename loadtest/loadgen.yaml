@@ -1,0 +1,50 @@
+# loadgen — order-service POST 부하 생성기 (curl 워커 N개)
+#
+# 기본: order-service ClusterIP 로 정상 부하(→ 201). RED 대시보드 Request rate·p99 채우기용.
+# 5xx 장애 주입: TARGET 을 order-service "파드 IP" 로 지정 + DB(postgres) 를 내린다.
+#   - 이유: order-service readiness(/ready)가 DB 의존 → DB 다운 시 파드가 NotReady →
+#     Service 엔드포인트에서 빠져 ClusterIP 로는 HTTP 000(요청이 안 닿아 5xx 카운터 미증가).
+#     파드 IP 직접 타깃이면 요청이 닿아 서버가 500 응답 → http_request_duration_seconds_count{status="5.."} 증가.
+#   - Prometheus 는 NotReady 파드도 계속 스크랩하므로 Grafana 에 5xx 가 잡힌다.
+# 절차 상세는 README.md 참고. (ArgoCD selfHeal 이 postgres 를 되살리므로 동결 필요.)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  namespace: mock-trading-platform-dev
+  labels: { app: loadgen, purpose: loadtest }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: loadgen } }
+  template:
+    metadata:
+      labels: { app: loadgen }
+    spec:
+      containers:
+      - name: loadgen
+        image: curlimages/curl:8.10.1
+        command: ["sh", "-c"]
+        args:
+        - |
+          TARGET="${TARGET:-http://mock-trading-platform-dev-order-service-order-service:8080/api/orders}"
+          BODY='{"pair":"BTC-KRW","side":"buy","quantity":"1","price":"1000"}'
+          WORKERS="${WORKERS:-12}"
+          echo "loadgen POST -> $TARGET ($WORKERS workers)"
+          i=0
+          while [ "$i" -lt "$WORKERS" ]; do
+            ( while true; do
+                curl -s -o /dev/null --max-time 5 \
+                  -X POST -H "Content-Type: application/json" -d "$BODY" "$TARGET"
+                sleep 0.05
+              done ) &
+            i=$((i+1))
+          done
+          wait
+        env:
+        # 5xx 시나리오: TARGET 을 "http://<order-service 파드 IP>:8080/api/orders" 로 덮어쓰기.
+        # 더 높은 처리율이 필요하면 WORKERS 증가(요청당 ~3s DB 재시도라 워커 수가 5xx req/s 를 좌우).
+        - { name: TARGET, value: "" }
+        - { name: WORKERS, value: "12" }
+        resources:
+          requests: { cpu: 200m, memory: 64Mi }
+          limits: { cpu: 1500m, memory: 128Mi }
