@@ -1,6 +1,6 @@
 # FRONTEND_PLAN
 
-exchange mock system에 프론트엔드를 추가하기 위한 **최종 수정 구현 계획**.
+mock trading platform에 프론트엔드를 추가하기 위한 **최종 수정 구현 계획**.
 이 문서는 `mock-trading-platform-app` 리포에 위치하지만, 작업 범위는 `mock-trading-platform-app` /
 `mock-trading-platform-gitops` / `mock-trading-platform-infra` 3개 리포 모두를 포함한다.
 
