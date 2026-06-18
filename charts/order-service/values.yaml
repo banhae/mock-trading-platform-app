@@ -31,6 +31,14 @@ env:
   NATS_URL: ""
   NATS_STREAM: "ORDERS"
 
+# External Secrets(ESO)가 생성한 K8s Secret을 컨테이너 env로 주입하는 경로.
+# 기본은 빈 목록(literal env만 사용). 환경 values에서 아래처럼 override 한다.
+#   envFrom:
+#     - secretRef:
+#         name: auth-jwt
+# env(JWT_SECRET: "")는 빈 값이라 렌더되지 않으므로 envFrom 값이 그대로 적용된다.
+envFrom: []
+
 resources:
   requests:
     cpu: 100m
