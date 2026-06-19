@@ -29,7 +29,7 @@ spec:
               protocol: TCP
           env:
             {{- range $key, $value := .Values.env }}
-            {{- if $value }}
+            {{- if not (or (kindIs "invalid" $value) (eq (toString $value) "")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
